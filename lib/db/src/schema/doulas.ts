@@ -29,6 +29,7 @@ export const doulaTable = pgTable("doulas", {
   languages: text("languages").notNull().default("[]"), // JSON array
   rateMin: integer("rate_min"),
   rateMax: integer("rate_max"),
+  consultationDepositCents: integer("consultation_deposit_cents"), // null = no deposit required
   acceptingClients: boolean("accepting_clients").notNull().default(true),
   insuranceAccepted: boolean("insurance_accepted").notNull().default(false),
   slidingScaleAvailable: boolean("sliding_scale_available")

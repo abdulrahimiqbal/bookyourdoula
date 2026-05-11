@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./availabilityEntry";
+export * from "./availabilityInput";
+export * from "./availabilityInputDatesItem";
 export * from "./booking";
+export * from "./bookingCreateResponse";
 export * from "./bookingInput";
 export * from "./bookingStatus";
 export * from "./bookingUpdate";
@@ -21,6 +25,8 @@ export * from "./doulaServiceInputServiceType";
 export * from "./doulaServiceRateType";
 export * from "./doulaServiceServiceType";
 export * from "./doulaUpdate";
+export * from "./errorEnvelope";
+export * from "./getDoulaAvailabilityParams";
 export * from "./healthStatus";
 export * from "./listBookingsParams";
 export * from "./listBookingsStatus";
@@ -29,3 +35,7 @@ export * from "./listDoulasServiceType";
 export * from "./platformStats";
 export * from "./review";
 export * from "./reviewInput";
+export * from "./stripeCheckoutInput";
+export * from "./stripeCheckoutResponse";
+export * from "./uploadUrlRequest";
+export * from "./uploadUrlResponse";

@@ -13,5 +13,6 @@ export interface BookingInput {
   clientPhone?: string;
   serviceType: string;
   dueDate?: string;
+  preferredDate?: string;
   message: string;
 }

@@ -33,6 +33,8 @@ export interface Doula {
   rateMin?: number | null;
   /** @nullable */
   rateMax?: number | null;
+  /** @nullable */
+  consultationDepositCents?: number | null;
   acceptingClients: boolean;
   insuranceAccepted?: boolean;
   slidingScaleAvailable?: boolean;

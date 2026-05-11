@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle, Video, Upload, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -20,9 +20,13 @@ import {
   useCreateDoula,
   useUpdateDoula,
   useGetDoula,
+  useGetDoulaAvailability,
+  useSetDoulaAvailability,
   getGetDoulaQueryKey,
 } from "@workspace/api-client-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { useQueryClient } from "@tanstack/react-query";
+import { AvailabilityCalendar } from "@/components/availability-calendar";
 
 const STEPS = [
   { id: "basic", label: "Basic Info" },
@@ -42,6 +46,7 @@ const formSchema = z.object({
   philosophyStatement: z.string().optional(),
   approachDescription: z.string().optional(),
   photoUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  videoIntroUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
   serviceTypes: z.array(z.string()).min(1, "Select at least one service type"),
   yearsExperience: z.coerce.number().int().min(0).optional().or(z.literal("")),
   birthsAttended: z.coerce.number().int().min(0).optional().or(z.literal("")),
@@ -51,6 +56,7 @@ const formSchema = z.object({
   languages: z.array(z.object({ value: z.string() })),
   rateMin: z.coerce.number().int().min(0).optional().or(z.literal("")),
   rateMax: z.coerce.number().int().min(0).optional().or(z.literal("")),
+  consultationDepositCents: z.coerce.number().int().min(0).optional().or(z.literal("")),
   acceptingClients: z.boolean(),
   insuranceAccepted: z.boolean(),
   slidingScaleAvailable: z.boolean(),
@@ -172,6 +178,74 @@ function computeCompleteness(values: Partial<FormValues>): number {
   return Math.min(score, 100);
 }
 
+/** Availability step sub-component */
+function AvailabilityStep({ doulaId }: { doulaId: number | null }) {
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth() + 1);
+  const [localOverrides, setLocalOverrides] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
+
+  const { data: availability = [] } = useGetDoulaAvailability(
+    doulaId!,
+    { year: calYear, month: calMonth },
+    { query: { enabled: !!doulaId, queryKey: ["doulas", doulaId, "availability", calYear, calMonth] } }
+  );
+
+  const setAvailability = useSetDoulaAvailability();
+
+  const mergedAvailability = [
+    ...availability.filter((a) => !(a.date in localOverrides)),
+    ...Object.entries(localOverrides).map(([date, available]) => ({ date, available, id: 0, doulaId: doulaId! })),
+  ];
+
+  const handleToggle = useCallback(
+    (date: string, available: boolean) => {
+      if (!doulaId) return;
+      setLocalOverrides((prev) => ({ ...prev, [date]: available }));
+      const dates = [
+        ...mergedAvailability.filter((a) => a.date !== date),
+        { date, available },
+      ].map((a) => ({ date: a.date, available: a.available }));
+      setAvailability.mutate(
+        { id: doulaId, data: { dates } },
+        {
+          onError: () => {
+            toast({ title: "Could not save availability", variant: "destructive" });
+            setLocalOverrides((prev) => {
+              const next = { ...prev };
+              delete next[date];
+              return next;
+            });
+          },
+        }
+      );
+    },
+    [doulaId, mergedAvailability, setAvailability, toast]
+  );
+
+  if (!doulaId) {
+    return (
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        <p>Create your profile first, then set your availability from the edit view.</p>
+      </div>
+    );
+  }
+
+  return (
+    <AvailabilityCalendar
+      editable
+      availability={mergedAvailability}
+      onToggle={handleToggle}
+      onMonthChange={(y, m) => {
+        setCalYear(y);
+        setCalMonth(m);
+        setLocalOverrides({});
+      }}
+    />
+  );
+}
+
 export default function DoulaForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = !!id;
@@ -188,6 +262,17 @@ export default function DoulaForm() {
   const createDoula = useCreateDoula();
   const updateDoula = useUpdateDoula();
 
+  const { uploadFile, isUploading: isVideoUploading, progress: videoProgress } = useUpload({
+    onSuccess: (response) => {
+      const videoUrl = `/api/storage${response.objectPath}`;
+      form.setValue("videoIntroUrl", videoUrl);
+      toast({ title: "Video uploaded", description: "Your intro video has been saved." });
+    },
+    onError: (err) => {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -200,6 +285,7 @@ export default function DoulaForm() {
       philosophyStatement: "",
       approachDescription: "",
       photoUrl: "",
+      videoIntroUrl: "",
       serviceTypes: [],
       yearsExperience: "",
       birthsAttended: "",
@@ -209,6 +295,7 @@ export default function DoulaForm() {
       languages: [],
       rateMin: "",
       rateMax: "",
+      consultationDepositCents: "",
       acceptingClients: true,
       insuranceAccepted: false,
       slidingScaleAvailable: false,
@@ -217,7 +304,6 @@ export default function DoulaForm() {
     },
   });
 
-  // Populate form when editing
   useEffect(() => {
     if (existing && isEdit) {
       form.reset({
@@ -230,6 +316,7 @@ export default function DoulaForm() {
         philosophyStatement: existing.philosophyStatement ?? "",
         approachDescription: existing.approachDescription ?? "",
         photoUrl: existing.photoUrl ?? "",
+        videoIntroUrl: existing.videoIntroUrl ?? "",
         serviceTypes: existing.serviceTypes,
         yearsExperience: existing.yearsExperience ?? "",
         birthsAttended: existing.birthsAttended ?? "",
@@ -239,6 +326,7 @@ export default function DoulaForm() {
         languages: (existing.languages ?? []).map((v) => ({ value: v })),
         rateMin: existing.rateMin ?? "",
         rateMax: existing.rateMax ?? "",
+        consultationDepositCents: existing.consultationDepositCents ?? "",
         acceptingClients: existing.acceptingClients,
         insuranceAccepted: existing.insuranceAccepted,
         slidingScaleAvailable: existing.slidingScaleAvailable,
@@ -255,6 +343,7 @@ export default function DoulaForm() {
 
   const watchedValues = form.watch();
   const completeness = computeCompleteness(watchedValues);
+  const videoIntroUrl = form.watch("videoIntroUrl");
 
   async function onSubmit(values: FormValues) {
     const payload = {
@@ -267,6 +356,7 @@ export default function DoulaForm() {
       philosophyStatement: values.philosophyStatement || undefined,
       approachDescription: values.approachDescription || undefined,
       photoUrl: values.photoUrl || undefined,
+      videoIntroUrl: values.videoIntroUrl || undefined,
       serviceTypes: values.serviceTypes,
       yearsExperience: values.yearsExperience ? Number(values.yearsExperience) : undefined,
       birthsAttended: values.birthsAttended ? Number(values.birthsAttended) : undefined,
@@ -276,6 +366,7 @@ export default function DoulaForm() {
       languages: values.languages.map((l) => l.value),
       rateMin: values.rateMin ? Number(values.rateMin) : undefined,
       rateMax: values.rateMax ? Number(values.rateMax) : undefined,
+      consultationDepositCents: values.consultationDepositCents ? Number(values.consultationDepositCents) : undefined,
       acceptingClients: values.acceptingClients,
       insuranceAccepted: values.insuranceAccepted,
       slidingScaleAvailable: values.slidingScaleAvailable,
@@ -431,6 +522,76 @@ export default function DoulaForm() {
                       <FormMessage />
                     </FormItem>
                   )} />
+
+                  {/* Video intro upload */}
+                  <FormField control={form.control} name="videoIntroUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Video className="h-4 w-4" /> Video introduction <span className="text-muted-foreground font-normal">(optional)</span>
+                      </FormLabel>
+                      {videoIntroUrl ? (
+                        <div className="rounded-xl overflow-hidden bg-black relative aspect-video">
+                          <video src={videoIntroUrl} controls className="w-full h-full" />
+                          <button
+                            type="button"
+                            onClick={() => field.onChange("")}
+                            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed border-border rounded-xl hover:border-primary/40 hover:bg-primary/3 transition-colors cursor-pointer group">
+                            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                              {isVideoUploading ? (
+                                <div className="relative w-5 h-5">
+                                  <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+                                  <div
+                                    className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin"
+                                    style={{ clipPath: `inset(0 ${100 - videoProgress}% 0 0)` }}
+                                  />
+                                </div>
+                              ) : (
+                                <Upload className="h-5 w-5 text-primary" />
+                              )}
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-foreground">
+                                {isVideoUploading ? `Uploading… ${videoProgress}%` : "Upload a video intro"}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">MP4, WebM up to 100 MB</p>
+                            </div>
+                            <input
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime"
+                              className="hidden"
+                              disabled={isVideoUploading}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadFile(file);
+                              }}
+                            />
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-px bg-border" />
+                            <span className="text-xs text-muted-foreground">or paste a URL</span>
+                            <div className="flex-1 h-px bg-border" />
+                          </div>
+                          <FormControl>
+                            <Input
+                              type="url"
+                              placeholder="https://youtube.com/watch?v=..."
+                              {...field}
+                              data-testid="input-video-url"
+                            />
+                          </FormControl>
+                        </div>
+                      )}
+                      <FormDescription>YouTube, Vimeo, or direct video link. Families see this on your profile.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                 </CardContent>
               </Card>
             )}
@@ -561,6 +722,20 @@ export default function DoulaForm() {
                     )} />
                   </div>
 
+                  <FormField control={form.control} name="consultationDepositCents" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Consultation deposit <span className="text-muted-foreground font-normal">(optional, in cents)</span></FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">¢</span>
+                          <Input type="number" min={0} className="pl-7" placeholder="e.g. 7500 = $75.00 CAD" {...field} data-testid="input-deposit" />
+                        </div>
+                      </FormControl>
+                      <FormDescription>Enter in cents (e.g. 7500 for $75). Families pay this when submitting a booking request.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
                   <div className="space-y-4">
                     <FormField control={form.control} name="insuranceAccepted" render={({ field }) => (
                       <FormItem className="flex items-center justify-between rounded-lg border p-4">
@@ -632,44 +807,57 @@ export default function DoulaForm() {
 
             {/* Step 4: Availability */}
             {step === 4 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-serif">Availability & links</CardTitle>
-                  <CardDescription>Let families know how to reach you and whether you're taking clients</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <FormField control={form.control} name="acceptingClients" render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-secondary/5">
-                      <div>
-                        <FormLabel className="text-base">Accepting new clients</FormLabel>
-                        <p className="text-sm text-muted-foreground">Toggle off when your schedule is full</p>
-                      </div>
-                      <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-accepting" />
-                      </FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="website" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Website <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                      <FormControl><Input type="url" placeholder="https://yourwebsite.com" {...field} data-testid="input-website" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="instagramHandle" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Instagram handle <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
-                          <Input className="pl-7" placeholder="yourhandle" {...field} data-testid="input-instagram" />
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-serif">Availability & links</CardTitle>
+                    <CardDescription>Set your open dates and let families know how to reach you</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <FormField control={form.control} name="acceptingClients" render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-secondary/5">
+                        <div>
+                          <FormLabel className="text-base">Accepting new clients</FormLabel>
+                          <p className="text-sm text-muted-foreground">Toggle off when your schedule is full</p>
                         </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </CardContent>
-              </Card>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-accepting" />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="website" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormControl><Input type="url" placeholder="https://yourwebsite.com" {...field} data-testid="input-website" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="instagramHandle" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Instagram handle <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                            <Input className="pl-7" placeholder="yourhandle" {...field} data-testid="input-instagram" />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </CardContent>
+                </Card>
+
+                {/* Availability calendar */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-serif text-base">Monthly availability</CardTitle>
+                    <CardDescription>Mark the days you're available for consultations</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AvailabilityStep doulaId={doulaId} />
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* Navigation */}

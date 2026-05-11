@@ -36,6 +36,8 @@ export interface Doula {
   rateMin?: number | null;
   /** @nullable */
   rateMax?: number | null;
+  /** @nullable */
+  consultationDepositCents?: number | null;
   acceptingClients: boolean;
   insuranceAccepted?: boolean;
   slidingScaleAvailable?: boolean;
@@ -73,6 +75,7 @@ export interface DoulaInput {
   languages?: string[];
   rateMin?: number;
   rateMax?: number;
+  consultationDepositCents?: number;
   acceptingClients?: boolean;
   insuranceAccepted?: boolean;
   slidingScaleAvailable?: boolean;
@@ -99,6 +102,7 @@ export interface DoulaUpdate {
   languages?: string[];
   rateMin?: number;
   rateMax?: number;
+  consultationDepositCents?: number;
   acceptingClients?: boolean;
   insuranceAccepted?: boolean;
   slidingScaleAvailable?: boolean;
@@ -210,6 +214,7 @@ export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 
 export const BookingStatus = {
   pending: "pending",
+  pending_payment: "pending_payment",
   accepted: "accepted",
   declined: "declined",
   completed: "completed",
@@ -228,11 +233,24 @@ export interface Booking {
   serviceType: string;
   /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  preferredDate?: string | null;
   status: BookingStatus;
   message: string;
   /** @nullable */
   doulaResponse?: string | null;
+  depositPaid: boolean;
+  /** @nullable */
+  depositAmountCents?: number | null;
+  /** @nullable */
+  stripeSessionId?: string | null;
   createdAt: string;
+}
+
+export interface BookingCreateResponse {
+  booking: Booking;
+  /** @nullable */
+  checkoutUrl?: string | null;
 }
 
 export interface BookingInput {
@@ -242,6 +260,7 @@ export interface BookingInput {
   clientPhone?: string;
   serviceType: string;
   dueDate?: string;
+  preferredDate?: string;
   message: string;
 }
 
@@ -250,6 +269,7 @@ export type BookingUpdateStatus =
 
 export const BookingUpdateStatus = {
   pending: "pending",
+  pending_payment: "pending_payment",
   accepted: "accepted",
   declined: "declined",
   completed: "completed",
@@ -259,6 +279,52 @@ export const BookingUpdateStatus = {
 export interface BookingUpdate {
   status?: BookingUpdateStatus;
   doulaResponse?: string;
+}
+
+export interface AvailabilityEntry {
+  id: number;
+  doulaId: number;
+  /** YYYY-MM-DD */
+  date: string;
+  available: boolean;
+}
+
+export type AvailabilityInputDatesItem = {
+  date: string;
+  available: boolean;
+};
+
+export interface AvailabilityInput {
+  dates: AvailabilityInputDatesItem[];
+}
+
+export interface StripeCheckoutInput {
+  bookingId: number;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface StripeCheckoutResponse {
+  checkoutUrl: string;
+  sessionId: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export interface PlatformStats {
@@ -302,6 +368,11 @@ export const ListDoulasServiceType = {
   birth_and_postpartum: "birth_and_postpartum",
 } as const;
 
+export type GetDoulaAvailabilityParams = {
+  year?: number;
+  month?: number;
+};
+
 export type ListBookingsParams = {
   doulaId?: number;
   status?: ListBookingsStatus;
@@ -312,6 +383,7 @@ export type ListBookingsStatus =
 
 export const ListBookingsStatus = {
   pending: "pending",
+  pending_payment: "pending_payment",
   accepted: "accepted",
   declined: "declined",
   completed: "completed",

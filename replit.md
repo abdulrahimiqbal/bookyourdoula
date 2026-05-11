@@ -10,6 +10,7 @@ A full-stack marketplace for Ottawa families to find, evaluate, and book trusted
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET`
+- Optional env: `STRIPE_SECRET_KEY` — enables Stripe deposit checkout; `STRIPE_WEBHOOK_SECRET` — verifies Stripe webhook events
 
 ## Stack
 
@@ -44,9 +45,12 @@ lib/api-zod/               Generated Zod schemas for server validation (do not e
 
 - **Browse & filter doulas**: Search by name/specialty, filter by service type, language, accepting-clients status
 - **Rich doula profiles**: Bio, philosophy statement, credentials, certifications, trainings, specialties, services, rate ranges, sliding scale, insurance
+- **Video intros**: Doulas upload a video (MP4/WebM via object storage) or paste a YouTube/Vimeo URL; shown on profile
 - **Profile completeness score**: Real-time wizard in 5 steps; score shown on profile card and sidebar
 - **Review system**: Verified client reviews with star ratings, birth year, service type
-- **Booking requests**: Families submit consultation requests; doulas see them in their dashboard
+- **Booking requests**: Families submit consultation requests with a preferred date picker (showing doula availability)
+- **Stripe payments**: If a doula sets `consultationDepositCents`, booking redirects to Stripe Checkout; webhook marks `depositPaid=true` on success; `/booking-success` page shown after payment
+- **Availability calendar**: Doulas mark available days per month via an interactive calendar in the profile editor; families see available dates when booking
 - **Doula dashboard**: Summary stats (pending/accepted/completed bookings, avg rating), recent activity
 - **Featured doulas** appear at the top of the home page hero
 

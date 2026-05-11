@@ -1,8 +1,8 @@
 import { Link, useParams } from "wouter";
-import { Star, MapPin, Languages, CheckCircle, XCircle, Award, BookOpen, Heart, Globe, Instagram, Calendar, Clock, ChevronLeft, Shield } from "lucide-react";
+import { Star, MapPin, Languages, CheckCircle, XCircle, Award, BookOpen, Heart, Globe, Instagram, Clock, ChevronLeft, Shield, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useGetDoula, useListDoulaReviews, useListDoulaServices, getGetDoulaQueryKey } from "@workspace/api-client-react";
@@ -17,6 +17,76 @@ function StarRating({ rating }: { rating: number }) {
         />
       ))}
     </span>
+  );
+}
+
+function VideoPlayer({ url, name }: { url: string; name: string }) {
+  const isDirectVideo =
+    url.endsWith(".mp4") || url.endsWith(".webm") || url.endsWith(".mov") || url.includes("/api/storage/");
+  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+  const isVimeo = url.includes("vimeo.com");
+
+  if (isYouTube) {
+    const videoId = url.includes("youtu.be/")
+      ? url.split("youtu.be/")[1]?.split("?")[0]
+      : new URLSearchParams(new URL(url).search).get("v");
+    return (
+      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          title={`${name} intro video`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+        />
+      </div>
+    );
+  }
+
+  if (isVimeo) {
+    const vimeoId = url.split("vimeo.com/")[1]?.split("?")[0];
+    return (
+      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
+        <iframe
+          src={`https://player.vimeo.com/video/${vimeoId}`}
+          title={`${name} intro video`}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+        />
+      </div>
+    );
+  }
+
+  if (isDirectVideo) {
+    return (
+      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
+        <video
+          src={url}
+          controls
+          className="absolute inset-0 w-full h-full"
+          preload="metadata"
+          title={`${name} intro video`}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors"
+    >
+      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <Play className="h-5 w-5 text-primary" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-foreground">Watch intro video</p>
+        <p className="text-xs text-muted-foreground">Opens in new tab</p>
+      </div>
+    </a>
   );
 }
 
@@ -205,6 +275,16 @@ export default function DoulaProfile() {
                 </div>
               )}
             </div>
+
+            {/* Video intro */}
+            {doula.videoIntroUrl && (
+              <div data-testid="section-video-intro">
+                <h2 className="font-serif text-xl mb-3 text-foreground flex items-center gap-2">
+                  <Play className="h-5 w-5 text-primary" /> Video Introduction
+                </h2>
+                <VideoPlayer url={doula.videoIntroUrl} name={doula.name} />
+              </div>
+            )}
 
             {/* Bio */}
             {doula.bio && (

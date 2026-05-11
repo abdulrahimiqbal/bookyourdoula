@@ -11,6 +11,7 @@ export type ListBookingsStatus =
 
 export const ListBookingsStatus = {
   pending: "pending",
+  pending_payment: "pending_payment",
   accepted: "accepted",
   declined: "declined",
   completed: "completed",

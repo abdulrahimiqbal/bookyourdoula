@@ -20,7 +20,10 @@ function formatBooking(
     doulaName: doulaName ?? null,
     clientPhone: b.clientPhone ?? null,
     dueDate: b.dueDate ?? null,
+    preferredDate: b.preferredDate ?? null,
     doulaResponse: b.doulaResponse ?? null,
+    stripeSessionId: b.stripeSessionId ?? null,
+    depositAmountCents: b.depositAmountCents ?? null,
     createdAt: b.createdAt.toISOString(),
   };
 }
@@ -56,7 +59,7 @@ router.get("/bookings", async (req, res): Promise<void> => {
   );
 });
 
-// POST /bookings
+// POST /bookings - creates booking and optionally a Stripe checkout session
 router.post("/bookings", async (req, res): Promise<void> => {
   const parsed = CreateBookingBody.safeParse(req.body);
   if (!parsed.success) {
@@ -64,22 +67,72 @@ router.post("/bookings", async (req, res): Promise<void> => {
     return;
   }
 
+  // Get the doula to check if deposit is required
+  const [doula] = await db
+    .select({ name: doulaTable.name, depositCents: doulaTable.consultationDepositCents })
+    .from(doulaTable)
+    .where(eq(doulaTable.id, parsed.data.doulaId));
+
+  const depositRequired = doula?.depositCents != null && doula.depositCents > 0;
+
   const [booking] = await db
     .insert(bookingTable)
     .values({
       ...parsed.data,
       clientPhone: parsed.data.clientPhone ?? null,
       dueDate: parsed.data.dueDate ?? null,
+      preferredDate: parsed.data.preferredDate ?? null,
+      status: depositRequired ? "pending_payment" : "pending",
+      depositAmountCents: doula?.depositCents ?? null,
     })
     .returning();
 
-  // Fetch doula name
-  const [doula] = await db
-    .select({ name: doulaTable.name })
-    .from(doulaTable)
-    .where(eq(doulaTable.id, parsed.data.doulaId));
+  let checkoutUrl: string | null = null;
 
-  res.status(201).json(formatBooking(booking, doula?.name));
+  if (depositRequired && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const { default: Stripe } = await import("stripe");
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const host = req.get("host") ?? "";
+      const protocol = req.protocol;
+      const baseUrl = `${protocol}://${host}`;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "cad",
+              product_data: {
+                name: `Consultation deposit — ${doula.name}`,
+                description: `Refundable deposit for your ${booking.serviceType} consultation request`,
+              },
+              unit_amount: doula.depositCents!,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${baseUrl}/booking-success?session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
+        cancel_url: `${baseUrl}/doulas/${booking.doulaId}/book?cancelled=1`,
+        metadata: { bookingId: String(booking.id) },
+      });
+
+      await db
+        .update(bookingTable)
+        .set({ stripeSessionId: session.id })
+        .where(eq(bookingTable.id, booking.id));
+
+      checkoutUrl = session.url;
+    } catch (err) {
+      req.log.error({ err }, "Failed to create Stripe checkout session");
+    }
+  }
+
+  res.status(201).json({
+    booking: formatBooking(booking, doula?.name),
+    checkoutUrl,
+  });
 });
 
 // GET /bookings/:id

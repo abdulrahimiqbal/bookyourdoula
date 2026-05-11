@@ -23,6 +23,7 @@ export interface DoulaUpdate {
   languages?: string[];
   rateMin?: number;
   rateMax?: number;
+  consultationDepositCents?: number;
   acceptingClients?: boolean;
   insuranceAccepted?: boolean;
   slidingScaleAvailable?: boolean;

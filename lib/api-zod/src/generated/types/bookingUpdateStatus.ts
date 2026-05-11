@@ -11,6 +11,7 @@ export type BookingUpdateStatus =
 
 export const BookingUpdateStatus = {
   pending: "pending",
+  pending_payment: "pending_payment",
   accepted: "accepted",
   declined: "declined",
   completed: "completed",

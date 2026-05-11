@@ -153,6 +153,7 @@ router.post("/doulas", async (req, res): Promise<void> => {
     languages: JSON.stringify(data.languages ?? []),
     rateMin: data.rateMin ?? null,
     rateMax: data.rateMax ?? null,
+    consultationDepositCents: data.consultationDepositCents ?? null,
     acceptingClients: data.acceptingClients ?? true,
     insuranceAccepted: data.insuranceAccepted ?? false,
     slidingScaleAvailable: data.slidingScaleAvailable ?? false,
@@ -273,6 +274,7 @@ router.patch("/doulas/:id", async (req, res): Promise<void> => {
   if (data.languages !== undefined) updateData.languages = JSON.stringify(data.languages);
   if (data.rateMin !== undefined) updateData.rateMin = data.rateMin;
   if (data.rateMax !== undefined) updateData.rateMax = data.rateMax;
+  if (data.consultationDepositCents !== undefined) updateData.consultationDepositCents = data.consultationDepositCents;
   if (data.acceptingClients !== undefined) updateData.acceptingClients = data.acceptingClients;
   if (data.insuranceAccepted !== undefined) updateData.insuranceAccepted = data.insuranceAccepted;
   if (data.slidingScaleAvailable !== undefined) updateData.slidingScaleAvailable = data.slidingScaleAvailable;

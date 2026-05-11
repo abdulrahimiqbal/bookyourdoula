@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import DoulasList from "@/pages/doulas-list";
 import DoulaProfile from "@/pages/doula-profile";
 import BookingForm from "@/pages/booking-form";
+import BookingSuccess from "@/pages/booking-success";
 import DoulaForm from "@/pages/doula-form";
 import DoulaDashboard from "@/pages/doula-dashboard";
 import BookingsList from "@/pages/bookings-list";
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/doulas" component={DoulasList} />
         <Route path="/doulas/new" component={DoulaForm} />
         <Route path="/doulas/:id/book" component={BookingForm} />
+        <Route path="/booking-success" component={BookingSuccess} />
         <Route path="/doulas/:id/edit">
           {(params) => <DoulaForm key={params.id} />}
         </Route>

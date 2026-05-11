@@ -19,9 +19,16 @@ export interface Booking {
   serviceType: string;
   /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  preferredDate?: string | null;
   status: BookingStatus;
   message: string;
   /** @nullable */
   doulaResponse?: string | null;
+  depositPaid: boolean;
+  /** @nullable */
+  depositAmountCents?: number | null;
+  /** @nullable */
+  stripeSessionId?: string | null;
   createdAt: string;
 }

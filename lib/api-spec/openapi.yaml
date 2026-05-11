@@ -19,6 +19,10 @@ tags:
     description: Doula services
   - name: discovery
     description: Discovery and search
+  - name: payments
+    description: Stripe payment operations
+  - name: storage
+    description: Object storage upload and serving endpoints
 paths:
   /healthz:
     get:
@@ -270,6 +274,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/DoulaDashboard"
 
+  /doulas/{id}/availability:
+    get:
+      operationId: getDoulaAvailability
+      tags: [doulas]
+      summary: Get doula availability dates for a month
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Availability entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailabilityEntry"
+    put:
+      operationId: setDoulaAvailability
+      tags: [doulas]
+      summary: Set doula availability for multiple dates
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvailabilityInput"
+      responses:
+        "200":
+          description: Updated availability entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailabilityEntry"
+
   /bookings:
     get:
       operationId: listBookings
@@ -284,7 +342,7 @@ paths:
           name: status
           schema:
             type: string
-            enum: [pending, accepted, declined, completed, cancelled]
+            enum: [pending, pending_payment, accepted, declined, completed, cancelled]
       responses:
         "200":
           description: Bookings
@@ -310,7 +368,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/BookingCreateResponse"
 
   /bookings/{id}:
     get:
@@ -353,6 +411,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+
+  /stripe/checkout:
+    post:
+      operationId: createStripeCheckout
+      tags: [payments]
+      summary: Create a Stripe checkout session for a booking deposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCheckoutInput"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Failed to generate upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 
 components:
   schemas:
@@ -422,6 +594,8 @@ components:
         rateMin:
           type: ["integer", "null"]
         rateMax:
+          type: ["integer", "null"]
+        consultationDepositCents:
           type: ["integer", "null"]
         acceptingClients:
           type: boolean
@@ -501,6 +675,8 @@ components:
           type: integer
         rateMax:
           type: integer
+        consultationDepositCents:
+          type: integer
         acceptingClients:
           type: boolean
         insuranceAccepted:
@@ -560,6 +736,8 @@ components:
         rateMin:
           type: integer
         rateMax:
+          type: integer
+        consultationDepositCents:
           type: integer
         acceptingClients:
           type: boolean
@@ -695,6 +873,7 @@ components:
         - serviceType
         - status
         - message
+        - depositPaid
         - createdAt
       properties:
         id:
@@ -713,15 +892,33 @@ components:
           type: string
         dueDate:
           type: ["string", "null"]
+        preferredDate:
+          type: ["string", "null"]
         status:
           type: string
-          enum: [pending, accepted, declined, completed, cancelled]
+          enum: [pending, pending_payment, accepted, declined, completed, cancelled]
         message:
           type: string
         doulaResponse:
           type: ["string", "null"]
+        depositPaid:
+          type: boolean
+        depositAmountCents:
+          type: ["integer", "null"]
+        stripeSessionId:
+          type: ["string", "null"]
         createdAt:
           type: string
+
+    BookingCreateResponse:
+      type: object
+      required:
+        - booking
+      properties:
+        booking:
+          $ref: "#/components/schemas/Booking"
+        checkoutUrl:
+          type: ["string", "null"]
 
     BookingInput:
       type: object
@@ -744,6 +941,8 @@ components:
           type: string
         dueDate:
           type: string
+        preferredDate:
+          type: string
         message:
           type: string
 
@@ -752,8 +951,88 @@ components:
       properties:
         status:
           type: string
-          enum: [pending, accepted, declined, completed, cancelled]
+          enum: [pending, pending_payment, accepted, declined, completed, cancelled]
         doulaResponse:
+          type: string
+
+    AvailabilityEntry:
+      type: object
+      required: [id, doulaId, date, available]
+      properties:
+        id:
+          type: integer
+        doulaId:
+          type: integer
+        date:
+          type: string
+          description: YYYY-MM-DD
+        available:
+          type: boolean
+
+    AvailabilityInput:
+      type: object
+      required: [dates]
+      properties:
+        dates:
+          type: array
+          items:
+            type: object
+            required: [date, available]
+            properties:
+              date:
+                type: string
+              available:
+                type: boolean
+
+    StripeCheckoutInput:
+      type: object
+      required: [bookingId, successUrl, cancelUrl]
+      properties:
+        bookingId:
+          type: integer
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+
+    StripeCheckoutResponse:
+      type: object
+      required: [checkoutUrl, sessionId]
+      properties:
+        checkoutUrl:
+          type: string
+        sessionId:
+          type: string
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+        objectPath:
+          type: string
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
           type: string
 
     PlatformStats:

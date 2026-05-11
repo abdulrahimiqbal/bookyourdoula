@@ -47,6 +47,7 @@ export const ListDoulasResponseItem = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().nullish(),
   rateMax: zod.number().nullish(),
+  consultationDepositCents: zod.number().nullish(),
   acceptingClients: zod.boolean(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -83,6 +84,7 @@ export const CreateDoulaBody = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().optional(),
   rateMax: zod.number().optional(),
+  consultationDepositCents: zod.number().optional(),
   acceptingClients: zod.boolean().optional(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -114,6 +116,7 @@ export const ListFeaturedDoulasResponseItem = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().nullish(),
   rateMax: zod.number().nullish(),
+  consultationDepositCents: zod.number().nullish(),
   acceptingClients: zod.boolean(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -170,6 +173,7 @@ export const GetDoulaResponse = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().nullish(),
   rateMax: zod.number().nullish(),
+  consultationDepositCents: zod.number().nullish(),
   acceptingClients: zod.boolean(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -208,6 +212,7 @@ export const UpdateDoulaBody = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().optional(),
   rateMax: zod.number().optional(),
+  consultationDepositCents: zod.number().optional(),
   acceptingClients: zod.boolean().optional(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -237,6 +242,7 @@ export const UpdateDoulaResponse = zod.object({
   languages: zod.array(zod.string()).optional(),
   rateMin: zod.number().nullish(),
   rateMax: zod.number().nullish(),
+  consultationDepositCents: zod.number().nullish(),
   acceptingClients: zod.boolean(),
   insuranceAccepted: zod.boolean().optional(),
   slidingScaleAvailable: zod.boolean().optional(),
@@ -361,8 +367,10 @@ export const GetDoulasDashboardResponse = zod.object({
       clientPhone: zod.string().nullish(),
       serviceType: zod.string(),
       dueDate: zod.string().nullish(),
+      preferredDate: zod.string().nullish(),
       status: zod.enum([
         "pending",
+        "pending_payment",
         "accepted",
         "declined",
         "completed",
@@ -370,6 +378,9 @@ export const GetDoulasDashboardResponse = zod.object({
       ]),
       message: zod.string(),
       doulaResponse: zod.string().nullish(),
+      depositPaid: zod.boolean(),
+      depositAmountCents: zod.number().nullish(),
+      stripeSessionId: zod.string().nullish(),
       createdAt: zod.string(),
     }),
   ),
@@ -390,12 +401,67 @@ export const GetDoulasDashboardResponse = zod.object({
 });
 
 /**
+ * @summary Get doula availability dates for a month
+ */
+export const GetDoulaAvailabilityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetDoulaAvailabilityQueryParams = zod.object({
+  year: zod.coerce.number().optional(),
+  month: zod.coerce.number().optional(),
+});
+
+export const GetDoulaAvailabilityResponseItem = zod.object({
+  id: zod.number(),
+  doulaId: zod.number(),
+  date: zod.string().describe("YYYY-MM-DD"),
+  available: zod.boolean(),
+});
+export const GetDoulaAvailabilityResponse = zod.array(
+  GetDoulaAvailabilityResponseItem,
+);
+
+/**
+ * @summary Set doula availability for multiple dates
+ */
+export const SetDoulaAvailabilityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetDoulaAvailabilityBody = zod.object({
+  dates: zod.array(
+    zod.object({
+      date: zod.string(),
+      available: zod.boolean(),
+    }),
+  ),
+});
+
+export const SetDoulaAvailabilityResponseItem = zod.object({
+  id: zod.number(),
+  doulaId: zod.number(),
+  date: zod.string().describe("YYYY-MM-DD"),
+  available: zod.boolean(),
+});
+export const SetDoulaAvailabilityResponse = zod.array(
+  SetDoulaAvailabilityResponseItem,
+);
+
+/**
  * @summary List booking requests
  */
 export const ListBookingsQueryParams = zod.object({
   doulaId: zod.coerce.number().optional(),
   status: zod
-    .enum(["pending", "accepted", "declined", "completed", "cancelled"])
+    .enum([
+      "pending",
+      "pending_payment",
+      "accepted",
+      "declined",
+      "completed",
+      "cancelled",
+    ])
     .optional(),
 });
 
@@ -408,8 +474,10 @@ export const ListBookingsResponseItem = zod.object({
   clientPhone: zod.string().nullish(),
   serviceType: zod.string(),
   dueDate: zod.string().nullish(),
+  preferredDate: zod.string().nullish(),
   status: zod.enum([
     "pending",
+    "pending_payment",
     "accepted",
     "declined",
     "completed",
@@ -417,6 +485,9 @@ export const ListBookingsResponseItem = zod.object({
   ]),
   message: zod.string(),
   doulaResponse: zod.string().nullish(),
+  depositPaid: zod.boolean(),
+  depositAmountCents: zod.number().nullish(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.string(),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
@@ -431,6 +502,7 @@ export const CreateBookingBody = zod.object({
   clientPhone: zod.string().optional(),
   serviceType: zod.string(),
   dueDate: zod.string().optional(),
+  preferredDate: zod.string().optional(),
   message: zod.string(),
 });
 
@@ -450,8 +522,10 @@ export const GetBookingResponse = zod.object({
   clientPhone: zod.string().nullish(),
   serviceType: zod.string(),
   dueDate: zod.string().nullish(),
+  preferredDate: zod.string().nullish(),
   status: zod.enum([
     "pending",
+    "pending_payment",
     "accepted",
     "declined",
     "completed",
@@ -459,6 +533,9 @@ export const GetBookingResponse = zod.object({
   ]),
   message: zod.string(),
   doulaResponse: zod.string().nullish(),
+  depositPaid: zod.boolean(),
+  depositAmountCents: zod.number().nullish(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.string(),
 });
 
@@ -471,7 +548,14 @@ export const UpdateBookingParams = zod.object({
 
 export const UpdateBookingBody = zod.object({
   status: zod
-    .enum(["pending", "accepted", "declined", "completed", "cancelled"])
+    .enum([
+      "pending",
+      "pending_payment",
+      "accepted",
+      "declined",
+      "completed",
+      "cancelled",
+    ])
     .optional(),
   doulaResponse: zod.string().optional(),
 });
@@ -485,8 +569,10 @@ export const UpdateBookingResponse = zod.object({
   clientPhone: zod.string().nullish(),
   serviceType: zod.string(),
   dueDate: zod.string().nullish(),
+  preferredDate: zod.string().nullish(),
   status: zod.enum([
     "pending",
+    "pending_payment",
     "accepted",
     "declined",
     "completed",
@@ -494,5 +580,51 @@ export const UpdateBookingResponse = zod.object({
   ]),
   message: zod.string(),
   doulaResponse: zod.string().nullish(),
+  depositPaid: zod.boolean(),
+  depositAmountCents: zod.number().nullish(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.string(),
+});
+
+/**
+ * @summary Create a Stripe checkout session for a booking deposit
+ */
+export const CreateStripeCheckoutBody = zod.object({
+  bookingId: zod.number(),
+  successUrl: zod.string(),
+  cancelUrl: zod.string(),
+});
+
+export const CreateStripeCheckoutResponse = zod.object({
+  checkoutUrl: zod.string(),
+  sessionId: zod.string(),
+});
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string().min(1),
+  size: zod.number().min(1),
+  contentType: zod.string().min(1),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string().url(),
+  objectPath: zod.string(),
+});
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const GetPublicObjectParams = zod.object({
+  filePath: zod.coerce.string(),
+});
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const GetStorageObjectParams = zod.object({
+  objectPath: zod.coerce.string(),
 });
