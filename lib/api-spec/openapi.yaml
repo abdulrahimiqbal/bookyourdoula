@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BookYourDoula API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: doulas
+    description: Doula profiles
+  - name: bookings
+    description: Booking requests
+  - name: reviews
+    description: Client reviews
+  - name: services
+    description: Doula services
+  - name: discovery
+    description: Discovery and search
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,328 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /doulas:
+    get:
+      operationId: listDoulas
+      tags: [doulas]
+      summary: List and search doulas
+      parameters:
+        - in: query
+          name: serviceType
+          schema:
+            type: string
+            enum: [birth, postpartum, birth_and_postpartum]
+        - in: query
+          name: language
+          schema:
+            type: string
+        - in: query
+          name: minRating
+          schema:
+            type: number
+        - in: query
+          name: maxRate
+          schema:
+            type: integer
+        - in: query
+          name: acceptingClients
+          schema:
+            type: boolean
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of doulas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Doula"
+    post:
+      operationId: createDoula
+      tags: [doulas]
+      summary: Create a doula profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DoulaInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doula"
+
+  /doulas/featured:
+    get:
+      operationId: listFeaturedDoulas
+      tags: [discovery]
+      summary: Get featured/highlighted doulas
+      responses:
+        "200":
+          description: Featured doulas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Doula"
+
+  /doulas/stats:
+    get:
+      operationId: getDoulaStats
+      tags: [discovery]
+      summary: Platform-wide stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  /doulas/{id}:
+    get:
+      operationId: getDoula
+      tags: [doulas]
+      summary: Get doula profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Doula profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doula"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateDoula
+      tags: [doulas]
+      summary: Update doula profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DoulaUpdate"
+      responses:
+        "200":
+          description: Updated doula
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doula"
+
+  /doulas/{id}/services:
+    get:
+      operationId: listDoulaServices
+      tags: [services]
+      summary: Get services offered by a doula
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Doula services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DoulaService"
+    post:
+      operationId: createDoulaService
+      tags: [services]
+      summary: Add a service to a doula profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DoulaServiceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoulaService"
+
+  /doulas/{id}/reviews:
+    get:
+      operationId: listDoulaReviews
+      tags: [reviews]
+      summary: Get reviews for a doula
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: createDoulaReview
+      tags: [reviews]
+      summary: Submit a review for a doula
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  /doulas/{id}/dashboard:
+    get:
+      operationId: getDoulasDashboard
+      tags: [discovery]
+      summary: Doula dashboard summary (bookings, reviews, profile completeness)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoulaDashboard"
+
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List booking requests
+      parameters:
+        - in: query
+          name: doulaId
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted, declined, completed, cancelled]
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a booking request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}:
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      summary: Get booking details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+    patch:
+      operationId: updateBooking
+      tags: [bookings]
+      summary: Update booking status or details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingUpdate"
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +364,454 @@ components:
       required:
         - status
 
+    Doula:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - serviceTypes
+        - bio
+        - location
+        - acceptingClients
+        - profileCompleteness
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        location:
+          type: string
+        bio:
+          type: string
+        tagline:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        videoIntroUrl:
+          type: ["string", "null"]
+        serviceTypes:
+          type: array
+          items:
+            type: string
+        yearsExperience:
+          type: ["integer", "null"]
+        birthsAttended:
+          type: ["integer", "null"]
+        certifications:
+          type: array
+          items:
+            type: string
+        trainings:
+          type: array
+          items:
+            type: string
+        specialties:
+          type: array
+          items:
+            type: string
+        languages:
+          type: array
+          items:
+            type: string
+        rateMin:
+          type: ["integer", "null"]
+        rateMax:
+          type: ["integer", "null"]
+        acceptingClients:
+          type: boolean
+        insuranceAccepted:
+          type: boolean
+        slidingScaleAvailable:
+          type: boolean
+        averageRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+        profileCompleteness:
+          type: integer
+        philosophyStatement:
+          type: ["string", "null"]
+        approachDescription:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        instagramHandle:
+          type: ["string", "null"]
+        featured:
+          type: boolean
+        createdAt:
+          type: string
+
+    DoulaInput:
+      type: object
+      required:
+        - name
+        - email
+        - serviceTypes
+        - bio
+        - location
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        location:
+          type: string
+        bio:
+          type: string
+        tagline:
+          type: string
+        photoUrl:
+          type: string
+        videoIntroUrl:
+          type: string
+        serviceTypes:
+          type: array
+          items:
+            type: string
+        yearsExperience:
+          type: integer
+        birthsAttended:
+          type: integer
+        certifications:
+          type: array
+          items:
+            type: string
+        trainings:
+          type: array
+          items:
+            type: string
+        specialties:
+          type: array
+          items:
+            type: string
+        languages:
+          type: array
+          items:
+            type: string
+        rateMin:
+          type: integer
+        rateMax:
+          type: integer
+        acceptingClients:
+          type: boolean
+        insuranceAccepted:
+          type: boolean
+        slidingScaleAvailable:
+          type: boolean
+        philosophyStatement:
+          type: string
+        approachDescription:
+          type: string
+        website:
+          type: string
+        instagramHandle:
+          type: string
+
+    DoulaUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        location:
+          type: string
+        bio:
+          type: string
+        tagline:
+          type: string
+        photoUrl:
+          type: string
+        videoIntroUrl:
+          type: string
+        serviceTypes:
+          type: array
+          items:
+            type: string
+        yearsExperience:
+          type: integer
+        birthsAttended:
+          type: integer
+        certifications:
+          type: array
+          items:
+            type: string
+        trainings:
+          type: array
+          items:
+            type: string
+        specialties:
+          type: array
+          items:
+            type: string
+        languages:
+          type: array
+          items:
+            type: string
+        rateMin:
+          type: integer
+        rateMax:
+          type: integer
+        acceptingClients:
+          type: boolean
+        insuranceAccepted:
+          type: boolean
+        slidingScaleAvailable:
+          type: boolean
+        philosophyStatement:
+          type: string
+        approachDescription:
+          type: string
+        website:
+          type: string
+        instagramHandle:
+          type: string
+        featured:
+          type: boolean
+
+    DoulaService:
+      type: object
+      required:
+        - id
+        - doulaId
+        - name
+        - serviceType
+      properties:
+        id:
+          type: integer
+        doulaId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        serviceType:
+          type: string
+          enum: [birth, postpartum, education, other]
+        rateType:
+          type: ["string", "null"]
+          enum: [flat, hourly, package, null]
+        rate:
+          type: ["integer", "null"]
+        includedHours:
+          type: ["integer", "null"]
+        packageDetails:
+          type: ["string", "null"]
+
+    DoulaServiceInput:
+      type: object
+      required:
+        - name
+        - serviceType
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        serviceType:
+          type: string
+          enum: [birth, postpartum, education, other]
+        rateType:
+          type: string
+          enum: [flat, hourly, package]
+        rate:
+          type: integer
+        includedHours:
+          type: integer
+        packageDetails:
+          type: string
+
+    Review:
+      type: object
+      required:
+        - id
+        - doulaId
+        - clientName
+        - rating
+        - body
+        - serviceType
+        - createdAt
+      properties:
+        id:
+          type: integer
+        doulaId:
+          type: integer
+        clientName:
+          type: string
+        rating:
+          type: integer
+        title:
+          type: ["string", "null"]
+        body:
+          type: string
+        serviceType:
+          type: string
+        birthYear:
+          type: ["integer", "null"]
+        verified:
+          type: boolean
+        createdAt:
+          type: string
+
+    ReviewInput:
+      type: object
+      required:
+        - clientName
+        - rating
+        - body
+        - serviceType
+      properties:
+        clientName:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        body:
+          type: string
+        serviceType:
+          type: string
+        birthYear:
+          type: integer
+
+    Booking:
+      type: object
+      required:
+        - id
+        - doulaId
+        - clientName
+        - clientEmail
+        - serviceType
+        - status
+        - message
+        - createdAt
+      properties:
+        id:
+          type: integer
+        doulaId:
+          type: integer
+        doulaName:
+          type: ["string", "null"]
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+        clientPhone:
+          type: ["string", "null"]
+        serviceType:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, accepted, declined, completed, cancelled]
+        message:
+          type: string
+        doulaResponse:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    BookingInput:
+      type: object
+      required:
+        - doulaId
+        - clientName
+        - clientEmail
+        - serviceType
+        - message
+      properties:
+        doulaId:
+          type: integer
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+        clientPhone:
+          type: string
+        serviceType:
+          type: string
+        dueDate:
+          type: string
+        message:
+          type: string
+
+    BookingUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, accepted, declined, completed, cancelled]
+        doulaResponse:
+          type: string
+
+    PlatformStats:
+      type: object
+      required:
+        - totalDoulas
+        - acceptingClients
+        - averageRating
+        - totalReviews
+        - totalBookings
+      properties:
+        totalDoulas:
+          type: integer
+        acceptingClients:
+          type: integer
+        averageRating:
+          type: number
+        totalReviews:
+          type: integer
+        totalBookings:
+          type: integer
+        birthDoulaCount:
+          type: integer
+        postpartumDoulaCount:
+          type: integer
+
+    DoulaDashboard:
+      type: object
+      required:
+        - doulaId
+        - pendingBookings
+        - acceptedBookings
+        - completedBookings
+        - totalReviews
+        - averageRating
+        - profileCompleteness
+        - recentBookings
+        - recentReviews
+      properties:
+        doulaId:
+          type: integer
+        pendingBookings:
+          type: integer
+        acceptedBookings:
+          type: integer
+        completedBookings:
+          type: integer
+        totalReviews:
+          type: integer
+        averageRating:
+          type: ["number", "null"]
+        profileCompleteness:
+          type: integer
+        recentBookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        recentReviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/Review"
